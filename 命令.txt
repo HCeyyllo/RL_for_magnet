@@ -1,0 +1,5 @@
+python -m rl.train_ddpg --resume-from runs/ddpg_magnet/checkpoint_latest.pt
+
+python -m rl.evaluate_ddpg --model-path runs/ddpg_magnet/model.pt --episodes 5 --max-steps 100
+
+python -m rl.evaluate_ddpg --model-path runs/ddpg_magnet/checkpoint_latest.pt --episodes 1 --max-steps 10000 --shape-every 10
