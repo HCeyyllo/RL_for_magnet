@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 import numpy as np
 from scipy.optimize import minimize
 
@@ -20,10 +19,16 @@ class MagnetReachEnvConfig:
     segment_length: float = l_default
     elastic_k: float = k_workspace_same
     segment_moment: float = m_seg_default
-    max_steps: int = 20
+    max_steps: int = 500
     goal_tolerance: float = 1.0e-3
-    radius_bounds: tuple[float, float] = (0.03, 0.08)
-    magnet_angle_bounds: tuple[float, float] = (0.0, 0.5 * np.pi)
+    radius_bounds: tuple[float, float] = (0.01, 0.1)
+    magnet_angle_bounds: tuple[float, float] = (-1.5 * np.pi, 1.5 * np.pi)
+    fixed_reset_radius: float = 0.03
+    fixed_reset_magnet_angle: float = 0.0
+    fixed_reset_sigma_angle: float = 0.0
+    target_radius_delta: float = 1.0e-2
+    target_magnet_angle_delta: float = np.deg2rad(30.0)
+    target_sigma_angle_delta: float = np.deg2rad(45.0)
     radius_delta: float = 2.0e-3
     magnet_angle_delta: float = np.deg2rad(3.0)
     sigma_angle_delta: float = np.deg2rad(10.0)
@@ -72,9 +77,14 @@ class MagnetReachEnv:
     def reset(self) -> np.ndarray:
         """Start a new episode and return the first observation."""
         self.steps = 0
-        self.radius = self.rng.uniform(*self.config.radius_bounds)
-        self.magnet_angle = self.rng.uniform(*self.config.magnet_angle_bounds)
-        self.sigma_angle = self.rng.uniform(-np.pi, np.pi)
+        self.radius = float(np.clip(self.config.fixed_reset_radius, *self.config.radius_bounds))
+        self.magnet_angle = float(
+            np.clip(
+                self.config.fixed_reset_magnet_angle,
+                *self.config.magnet_angle_bounds,
+            )
+        )
+        self.sigma_angle = self._wrap_angle(self.config.fixed_reset_sigma_angle)
         self.beta = np.zeros(self.config.n_segments, dtype=np.float64)
         self.beta, self.end_position = self._solve_current_shape(self.beta)
 
@@ -149,15 +159,38 @@ class MagnetReachEnv:
         old_magnet_angle = self.magnet_angle
         old_sigma_angle = self.sigma_angle
 
-        self.radius = self.rng.uniform(*self.config.radius_bounds)
-        self.magnet_angle = self.rng.uniform(*self.config.magnet_angle_bounds)
-        self.sigma_angle = self.rng.uniform(-np.pi, np.pi)
+        self.radius = self._sample_clipped_delta(
+            self.config.fixed_reset_radius,
+            self.config.target_radius_delta,
+            self.config.radius_bounds,
+        )
+        self.magnet_angle = self._sample_clipped_delta(
+            self.config.fixed_reset_magnet_angle,
+            self.config.target_magnet_angle_delta,
+            self.config.magnet_angle_bounds,
+        )
+        self.sigma_angle = self._wrap_angle(
+            self.config.fixed_reset_sigma_angle
+            + self.rng.uniform(
+                -self.config.target_sigma_angle_delta,
+                self.config.target_sigma_angle_delta,
+            )
+        )
         _, target = self._solve_current_shape(np.zeros_like(self.beta))
 
         self.radius = old_radius
         self.magnet_angle = old_magnet_angle
         self.sigma_angle = old_sigma_angle
         return target
+
+    def _sample_clipped_delta(
+        self,
+        center: float,
+        delta: float,
+        bounds: tuple[float, float],
+    ) -> float:
+        value = center + self.rng.uniform(-delta, delta)
+        return float(np.clip(value, *bounds))
 
     def _solve_current_shape(self, beta0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         res = minimize(

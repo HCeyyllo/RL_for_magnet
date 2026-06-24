@@ -183,6 +183,27 @@ class DDPGAgent:
             action = action + self.noise.sample()
         return np.clip(action, -1.0, 1.0).astype(np.float32)
 
+    def select_actions(
+        self,
+        observations: np.ndarray,
+        add_noise: bool = True,
+        noises: list[OUNoise] | None = None,
+    ) -> np.ndarray:
+        self.actor.eval()
+        with torch.no_grad():
+            obs = torch.as_tensor(observations, dtype=torch.float32, device=self.device)
+            actions = self.actor(obs).cpu().numpy()
+        self.actor.train()
+        if add_noise:
+            if noises is None:
+                noise_values = np.stack([self.noise.sample() for _ in range(len(actions))])
+            else:
+                if len(noises) != len(actions):
+                    raise ValueError("Number of noise processes must match number of observations.")
+                noise_values = np.stack([noise.sample() for noise in noises])
+            actions = actions + noise_values
+        return np.clip(actions, -1.0, 1.0).astype(np.float32)
+
     def train_step(self) -> dict[str, float] | None:
         if len(self.replay_buffer) < self.config.batch_size:
             return None
