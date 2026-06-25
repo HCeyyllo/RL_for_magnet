@@ -12,7 +12,7 @@ from torch.nn import functional as F
 @dataclass
 class DDPGConfig:
     actor_lr: float = 1.0e-4
-    critic_lr: float = 3.0e-4
+    critic_lr: float = 1.0e-4
     gamma: float = 0.99
     tau: float = 1.0e-3
     batch_size: int = 128
@@ -20,21 +20,20 @@ class DDPGConfig:
     ou_mu: float = 0.0
     ou_theta: float = 0.15
     ou_sigma: float = 0.20
+    max_grad_norm: float = 1.0
 
 
 class Actor(nn.Module):
     def __init__(self, observation_dim: int, action_dim: int) -> None:
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(observation_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(observation_dim, 256),
+            nn.LayerNorm(256),
             nn.ReLU(),
             nn.Linear(256, 256),
+            nn.LayerNorm(256),
             nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_dim),
+            nn.Linear(256, action_dim),
             nn.Tanh(),
         )
 
@@ -222,11 +221,13 @@ class DDPGAgent:
         critic_loss = F.mse_loss(q, y)
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.config.max_grad_norm)
         self.critic_optimizer.step()
 
         actor_loss = -self.critic(obs, self.actor(obs)).mean()
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.config.max_grad_norm)
         self.actor_optimizer.step()
 
         self._soft_update(self.actor_target, self.actor)

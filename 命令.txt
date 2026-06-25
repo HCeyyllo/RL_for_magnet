@@ -1,6 +1,7 @@
 python -m rl.train_ddpg --resume-from runs/ddpg_magnet/checkpoint_latest.pt
 
 python rl/train_ddpg.py --resume-from runs/ddpg_magnet/checkpoint_latest.pt --episodes 5000 --max-steps 1000 --num-envs 12 --num-workers 12 --parallel-backend process
+python rl/train_ddpg.py --episodes 5000 --max-steps 1000 --num-envs 12 --num-workers 12 --parallel-backend process
 
 python -m rl.evaluate_ddpg --model-path runs/ddpg_magnet/model.pt --episodes 5 --max-steps 100
 

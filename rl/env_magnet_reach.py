@@ -29,13 +29,15 @@ class MagnetReachEnvConfig:
     target_radius_delta: float = 1.0e-2
     target_magnet_angle_delta: float = np.deg2rad(30.0)
     target_sigma_angle_delta: float = np.deg2rad(45.0)
-    radius_delta: float = 2.0e-3
+
+    radius_delta: float = 2.0e-3  # 永磁体半径的增量delta r
     magnet_angle_delta: float = np.deg2rad(3.0)
     sigma_angle_delta: float = np.deg2rad(10.0)
+
     beta_bounds: tuple[float, float] = (-np.pi, np.pi)
     optimizer_maxiter: int = 80
     optimizer_ftol: float = 1.0e-8
-    success_bonus: float = 0.0
+    success_bonus: float = 10.0
 
 
 class MagnetReachEnv:
@@ -49,7 +51,7 @@ class MagnetReachEnv:
     """
 
     action_dim = 3
-    observation_dim = 8
+    observation_dim = 9
 
     def __init__(
         self,
@@ -109,11 +111,8 @@ class MagnetReachEnv:
                 *self.config.radius_bounds,
             )
         )
-        self.magnet_angle = float(
-            np.clip(
-                self.magnet_angle + action[1] * self.config.magnet_angle_delta,
-                *self.config.magnet_angle_bounds,
-            )
+        self.magnet_angle = self._wrap_angle(
+            self.magnet_angle + action[1] * self.config.magnet_angle_delta
         )
         self.sigma_angle = self._wrap_angle(
             self.sigma_angle + action[2] * self.config.sigma_angle_delta
@@ -125,7 +124,7 @@ class MagnetReachEnv:
         distance = float(np.linalg.norm(self.end_position - self.target))
         success = distance <= self.config.goal_tolerance
         timeout = self.steps >= self.config.max_steps
-        reward = -(distance**2)
+        reward = -distance
         if success:
             reward += self.config.success_bonus
 
@@ -219,18 +218,18 @@ class MagnetReachEnv:
 
     def _observation(self) -> np.ndarray:
         radius_min, radius_max = self.config.radius_bounds
-        angle_min, angle_max = self.config.magnet_angle_bounds
         radius_norm = 2.0 * (self.radius - radius_min) / (radius_max - radius_min) - 1.0
-        angle_norm = 2.0 * (self.magnet_angle - angle_min) / (angle_max - angle_min) - 1.0
+        relative = (self.target - self.end_position) / self.length_scale
 
         obs = np.array(
             [
+                relative[0],
+                relative[1],
                 self.end_position[0] / self.length_scale,
                 self.end_position[1] / self.length_scale,
-                self.target[0] / self.length_scale,
-                self.target[1] / self.length_scale,
                 radius_norm,
-                angle_norm,
+                np.cos(self.magnet_angle),
+                np.sin(self.magnet_angle),
                 np.cos(self.sigma_angle),
                 np.sin(self.sigma_angle),
             ],

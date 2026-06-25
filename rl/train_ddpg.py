@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--parallel-backend", choices=("thread", "process"), default="thread")
     parser.add_argument("--optimizer-maxiter", type=int, default=80)
     parser.add_argument("--goal-tolerance", type=float, default=1.0e-3)
-    parser.add_argument("--success-bonus", type=float, default=0.0)
+    parser.add_argument("--success-bonus", type=float, default=10.0)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("runs/ddpg_magnet"))
