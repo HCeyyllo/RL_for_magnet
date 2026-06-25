@@ -1,0 +1,13 @@
+# 训练产出：模型权重与检查点
+runs/**/*.pt
+runs/**/*.pth
+runs/**/*.ckpt
+
+# 训练日志
+runs/**/*.csv
+runs/**/*.log
+runs/**/*.tfevents*
+
+# Python 缓存
+__pycache__/
+*.py[cod]
