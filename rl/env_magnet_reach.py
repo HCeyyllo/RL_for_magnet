@@ -7,7 +7,7 @@ from scipy.optimize import minimize
 from config.magnet_layouts import W_same_direction
 from config.paths_and_params import k_workspace_same
 from config.physical_constants import N_default, l_default, m_seg_default
-from core.energy import total_energy
+from core.energy import total_energy_and_grad
 from core.kinematics import forward_positions
 
 
@@ -193,7 +193,7 @@ class MagnetReachEnv:
 
     def _solve_current_shape(self, beta0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         res = minimize(
-            lambda beta: total_energy(
+            lambda beta: total_energy_and_grad(
                 beta,
                 self._magnet_position(),
                 self._sigma_m(),
@@ -204,6 +204,7 @@ class MagnetReachEnv:
             ),
             np.asarray(beta0, dtype=np.float64),
             method="L-BFGS-B",
+            jac=True,
             bounds=[self.config.beta_bounds] * self.config.n_segments,
             options={
                 "maxiter": self.config.optimizer_maxiter,

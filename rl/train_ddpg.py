@@ -4,6 +4,7 @@ import argparse
 import csv
 import multiprocessing as mp
 import sys
+import time
 from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -34,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--output-dir", type=Path, default=Path("runs/ddpg_magnet"))
-    parser.add_argument("--checkpoint-interval", type=int, default=1000)
+    parser.add_argument("--checkpoint-interval", type=int, default=50)
     parser.add_argument("--resume-from", type=Path, default=None)
     return parser.parse_args()
 
@@ -372,14 +373,34 @@ def serializable_args(args: argparse.Namespace) -> dict:
     return values
 
 
-def write_csv_row(path: Path, row: dict[str, float | int], append: bool = True) -> None:
+def write_csv_row(
+    path: Path,
+    row: dict[str, float | int],
+    append: bool = True,
+    retries: int = 10,
+    retry_delay: float = 0.5,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = "a" if append else "w"
-    with path.open(mode, newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(row.keys()))
-        if not append:
-            writer.writeheader()
-        writer.writerow(row)
+    for attempt in range(retries):
+        try:
+            with path.open(mode, newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+                if not append:
+                    writer.writeheader()
+                writer.writerow(row)
+            return
+        except PermissionError:
+            # Windows 上文件被 Excel/WPS 等占用时会抛 PermissionError，
+            # 这里重试若干次，避免因临时占用导致整个训练崩溃。
+            if attempt < retries - 1:
+                print(
+                    f"[warn] 日志文件被占用，无法写入 {path}（请关闭打开它的程序）。"
+                    f"{retry_delay:.1f}s 后重试 ({attempt + 1}/{retries})..."
+                )
+                time.sleep(retry_delay)
+            else:
+                print(f"[warn] 多次重试后仍无法写入 {path}，跳过本行日志（训练继续）。")
 
 
 if __name__ == "__main__":

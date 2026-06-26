@@ -1,8 +1,13 @@
-python -m rl.train_ddpg --resume-from runs/ddpg_magnet/checkpoint_latest.pt
+$env:OMP_NUM_THREADS=1
+$env:MKL_NUM_THREADS=1
+$env:OPENBLAS_NUM_THREADS=1
+#从零训练（16 个并行环境，进程后端）：
+python rl/train_ddpg.py --episodes 5000 --max-steps 1000 --num-envs 8 --num-workers 8 --parallel-backend process
 
-python rl/train_ddpg.py --resume-from runs/ddpg_magnet/checkpoint_latest.pt --episodes 5000 --max-steps 1000 --num-envs 12 --num-workers 12 --parallel-backend process
-python rl/train_ddpg.py --episodes 5000 --max-steps 1000 --num-envs 12 --num-workers 12 --parallel-backend process
+#断点续训
+python rl/train_ddpg.py --resume-from runs/ddpg_magnet/checkpoint_latest.pt --episodes 5000 --max-steps 1000 --num-envs 16 --num-workers 16 --parallel-backend process
 
+#评估并出图
 python -m rl.evaluate_ddpg --model-path runs/ddpg_magnet/model.pt --episodes 5 --max-steps 100
-
+#或用最新 checkpoint 评估（带形状过程图）
 python -m rl.evaluate_ddpg --model-path runs/ddpg_magnet/checkpoint_latest.pt --episodes 10 --max-steps 100 --shape-every 10
